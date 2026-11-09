@@ -823,7 +823,7 @@ export default function MusicPlayer() {
                 letterSpacing: "0.12em",
               }}
             >
-              ♥ {_opener.title} — {_opener.artist}
+              ♥ {_opener.title} · {_opener.artist}
             </div>
           </div>
         </div>

@@ -1,267 +1,206 @@
 import { useEffect, useRef, useState } from "react";
 import { animate, stagger } from "animejs";
-// Journey starts :)
-const START_DATE = new Date("2025-05-14T00:00:00");
-
-function getElapsed() {
-  const diff = Date.now() - START_DATE.getTime();
-  const totalSeconds = Math.floor(diff / 1000);
-  return {
-    days: Math.floor(totalSeconds / 86400),
-    hours: Math.floor((totalSeconds % 86400) / 3600),
-    minutes: Math.floor((totalSeconds % 3600) / 60),
-    seconds: totalSeconds % 60,
-  };
-}
+import { contract } from "../data/personalization";
+import {
+  formatCalendarDate,
+  formatCalendarDateTime,
+  formatDuration,
+  formatProgress,
+  getRelationshipStats,
+} from "../lib/relationship";
 
 function TimerUnit({ value, label }: { value: number; label: string }) {
-  const tensRef = useRef<HTMLSpanElement | null>(null);
-  const onesRef = useRef<HTMLSpanElement | null>(null);
-  const prevValue = useRef(-1);
+  const numberRef = useRef<HTMLSpanElement>(null);
+  const previousValue = useRef(value);
+  const digits = String(value).padStart(2, "0");
 
   useEffect(() => {
-    // On first render just set the text, no animation
-    if (prevValue.current === -1) {
-      prevValue.current = value;
-      if (tensRef.current)
-        tensRef.current.textContent = String(Math.floor(value / 10));
-      if (onesRef.current) onesRef.current.textContent = String(value % 10);
+    if (previousValue.current === value || !numberRef.current) {
+      previousValue.current = value;
       return;
     }
-
-    if (prevValue.current === value) return;
-
-    const prevTens = Math.floor(prevValue.current / 10);
-    const prevOnes = prevValue.current % 10;
-    const newTens = Math.floor(value / 10);
-    const newOnes = value % 10;
-    prevValue.current = value;
-
-    const animateDigit = (
-      ref: React.RefObject<HTMLSpanElement | null>,
-      newVal: number,
-      changed: boolean,
-    ) => {
-      if (!changed || !ref.current) return;
-      animate(ref.current, {
-        translateY: [0, -20],
-        opacity: [1, 0],
-        duration: 200,
-        ease: "inExpo",
-        onComplete: () => {
-          if (ref.current) {
-            ref.current.textContent = String(newVal);
-            animate(ref.current, {
-              translateY: [20, 0],
-              opacity: [0, 1],
-              duration: 500,
-              ease: "outExpo",
-            });
-          }
-        },
-      });
-    };
-
-    animateDigit(tensRef, newTens, newTens !== prevTens);
-    animateDigit(onesRef, newOnes, newOnes !== prevOnes);
+    previousValue.current = value;
+    animate(numberRef.current, {
+      translateY: [7, 0],
+      opacity: [0.45, 1],
+      duration: 380,
+      ease: "outExpo",
+    });
   }, [value]);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.5rem",
-      }}
-    >
-      <div
-        style={{
-          background: "rgba(26,10,15,0.8)",
-          border: "1px solid rgba(200,151,58,0.3)",
-          borderRadius: "12px",
-          padding: "clamp(0.6rem, 2vw, 0.85rem) clamp(0.75rem, 2.5vw, 1.25rem)",
-          minWidth: "clamp(60px, 15vw, 85px)",
-          textAlign: "center",
-          backdropFilter: "blur(12px)",
-          boxShadow:
-            "0 4px 20px rgba(232,55,90,0.15), inset 0 1px 0 rgba(255,255,255,0.05)",
-          overflow: "hidden",
-          position: "relative" as const,
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: "1px",
-            background:
-              "linear-gradient(90deg, transparent, rgba(200,151,58,0.4), transparent)",
-          }}
-        />
-        <div style={{ display: "flex", justifyContent: "center" }}>
-          {/* Empty spans — text set imperatively by useEffect */}
-          <span
-            ref={tensRef}
-            style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: "clamp(1.8rem, 5vw, 2.8rem)",
-              color: "#fff5f0",
-              fontWeight: 700,
-              lineHeight: 1,
-              display: "inline-block",
-            }}
-          />
-          <span
-            ref={onesRef}
-            style={{
-              fontFamily: "'Playfair Display', serif",
-              fontSize: "clamp(1.8rem, 5vw, 2.8rem)",
-              color: "#fff5f0",
-              fontWeight: 700,
-              lineHeight: 1,
-              display: "inline-block",
-            }}
-          />
-        </div>
+    <div className="timer-unit">
+      <div className="timer-unit__box">
+        <span
+          className="timer-unit__digits"
+          ref={numberRef}
+          aria-label={`${value} ${label}`}
+        >
+          {digits.split("").map((digit, index) => (
+            <span className="timer-unit__digit" key={`${index}-${digit}`}>
+              {digit}
+            </span>
+          ))}
+        </span>
       </div>
-      <span
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "clamp(0.6rem, 1.5vw, 0.75rem)",
-          letterSpacing: "0.18em",
-          color: "rgba(200,151,58,0.7)",
-          textTransform: "uppercase" as const,
-        }}
-      >
-        {label}
-      </span>
+      <span className="timer-unit__label">{label}</span>
     </div>
   );
 }
-export default function LoveTimer() {
-  const [elapsed, setElapsed] = useState(getElapsed());
+
+export default function LoveTimer({ acceptedAt }: { acceptedAt: string }) {
+  const [now, setNow] = useState(() => new Date());
+  const [noticeIndex, setNoticeIndex] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLParagraphElement>(null);
-  const captionRef = useRef<HTMLParagraphElement>(null);
   const hasAnimated = useRef(false);
 
   useEffect(() => {
-    const interval = setInterval(() => setElapsed(getElapsed()), 1000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(() => setNow(new Date()), 1000);
+    const onVisibilityChange = () => {
+      if (!document.hidden) setNow(new Date());
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
-  // Entrance animation
   useEffect(() => {
-    if (!hasAnimated.current && wrapRef.current) {
-      hasAnimated.current = true;
-      let labelAnim: ReturnType<typeof animate> | undefined;
-      let captionAnim: ReturnType<typeof animate> | undefined;
+    const interval = window.setInterval(() => {
+      setNoticeIndex((current) => (current + 1) % contract.notices.length);
+    }, 6200);
+    return () => window.clearInterval(interval);
+  }, []);
 
-      if (labelRef.current) {
-        labelAnim = animate(labelRef.current, {
-          opacity: [0, 1],
-          translateY: [20, 0],
-          duration: 700,
-          ease: "outExpo",
-          delay: 200,
-        });
-      }
+  useEffect(() => {
+    if (!wrapRef.current || hasAnimated.current) return;
+    hasAnimated.current = true;
 
-      const unitsAnim = animate(wrapRef.current.querySelectorAll(".timer-unit"), {
+    const unitsAnimation = animate(
+      wrapRef.current.querySelectorAll(".timer-unit"),
+      {
         opacity: [0, 1],
-        translateY: [40, 0],
-        scale: [0.8, 1],
-        delay: stagger(100, { start: 400 }),
+        translateY: [22, 0],
+        delay: stagger(80, { start: 220 }),
         duration: 700,
         ease: "outExpo",
-      });
+      },
+    );
 
-      if (captionRef.current) {
-        captionAnim = animate(captionRef.current, {
-          opacity: [0, 1],
-          translateY: [20, 0],
-          duration: 700,
-          ease: "outExpo",
-          delay: 900,
-        });
-      }
+    const detailAnimation = animate(
+      wrapRef.current.querySelectorAll(".contract__meta, .contract__progress-label, .contract__progress, .contract__notices, .contract__special"),
+      {
+        opacity: [0, 1],
+        translateY: [14, 0],
+        delay: stagger(70, { start: 560 }),
+        duration: 650,
+        ease: "outExpo",
+      },
+    );
 
-      return () => {
-        hasAnimated.current = false;
-        if (labelAnim) labelAnim.pause();
-        if (unitsAnim) unitsAnim.pause();
-        if (captionAnim) captionAnim.pause();
-      };
-    }
-  }, []);
+    return () => {
+      hasAnimated.current = false;
+      unitsAnimation.pause();
+      detailAnimation.pause();
+    };
+  }, [acceptedAt]);
+
+  const stats = getRelationshipStats(acceptedAt, now);
+  if (!stats) return null;
 
   const units = [
-    { label: "Days", value: elapsed.days },
-    { label: "Hours", value: elapsed.hours },
-    { label: "Minutes", value: elapsed.minutes },
-    { label: "Seconds", value: elapsed.seconds },
+    { label: "Years", value: stats.elapsed.years },
+    { label: "Days", value: stats.elapsed.days },
+    { label: "Hours", value: stats.elapsed.hours },
+    { label: "Minutes", value: stats.elapsed.minutes },
+    { label: "Seconds", value: stats.elapsed.seconds },
   ];
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "1.5rem",
-        width: "100%",
-      }}
-    >
-      {/* Label */}
-      <p
-        ref={labelRef}
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "clamp(0.75rem, 2vw, 0.9rem)",
-          letterSpacing: "0.2em",
-          color: "rgba(200,151,58,0.75)",
-          textTransform: "uppercase" as const,
-          opacity: 0,
-        }}
-      >
-        — together since May 14, 2025 —
-      </p>
+  const notice = contract.notices[noticeIndex];
+  const status = stats.isComplete ? "COMPLETE" : contract.status;
 
-      {/* Timer units */}
+  return (
+    <section className="contract" aria-labelledby="contract-heading" ref={wrapRef}>
+      <div className="contract__head">
+        <p className="contract__label">{contract.label}</p>
+        <h2 className="contract__heading" id="contract-heading">
+          {contract.heading}
+        </h2>
+        <div className="contract__dates">
+          <span>Officially begun on: {formatCalendarDate(stats.start)}</span>
+          <span>{contract.durationLine}</span>
+          <span>Concludes after 99 years: {formatCalendarDate(stats.target)}</span>
+        </div>
+        <div className="contract__status">
+          <span className="contract__status-dot" aria-hidden="true" />
+          {contract.statusLabel}: {status}
+        </div>
+      </div>
+
       <div
-        ref={wrapRef}
-        style={{
-          display: "flex",
-          gap: "clamp(0.5rem, 3vw, 1.5rem)",
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
+        className="timer-grid"
+        aria-label="Time elapsed since you said yes"
       >
-        {units.map(({ label, value }) => (
-          <div key={label} className="timer-unit" style={{ opacity: 0 }}>
-            <TimerUnit value={value} label={label} />
-          </div>
+        {units.map((unit) => (
+          <TimerUnit key={unit.label} label={unit.label} value={unit.value} />
         ))}
       </div>
 
-      {/* Caption */}
-      <p
-        ref={captionRef}
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "clamp(0.95rem, 2.5vw, 1.1rem)",
-          color: "#fff5f0",
-          fontStyle: "italic",
-          opacity: 0,
-          textAlign: "center",
-          maxWidth: "400px",
-        }}
+      <div className="contract__meta">
+        <div className="contract__meta-item">
+          <p className="contract__meta-label">Time elapsed</p>
+          <p className="contract__meta-value">
+            {formatDuration(stats.elapsed, true)}
+          </p>
+        </div>
+        <div className="contract__meta-item">
+          <p className="contract__meta-label">
+            {stats.isComplete ? "Contract completed" : "Time remaining"}
+          </p>
+          <p className="contract__meta-value">
+            {stats.isComplete
+              ? "All 99 years, honoured in full."
+              : formatDuration(stats.remaining, true)}
+          </p>
+        </div>
+      </div>
+
+      <div className="contract__progress-label">
+        <span>Progress toward 99 years</span>
+        <span className="contract__progress-value">
+          {formatProgress(stats.progress)}
+        </span>
+      </div>
+      <div
+        className="contract__progress"
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Number((stats.progress * 100).toFixed(6))}
+        aria-valuetext={`${formatProgress(stats.progress)} of the full contract`}
+        aria-label="Progress toward 99 years"
       >
-        Every second with you is a gift 💕
+        <div
+          className="contract__progress-bar"
+          style={{
+            width: `${stats.progress * 100}%`,
+            minWidth: stats.progress > 0 ? "2px" : 0,
+          }}
+        />
+      </div>
+
+      <div className="contract__notices" aria-live="polite">
+        <p className="contract__notice" key={notice}>
+          {notice}
+        </p>
+      </div>
+
+      <p className="contract__special">{contract.specialLine}</p>
+      <p className="contract__signature">
+        Signed at <strong>{formatCalendarDateTime(stats.start)}</strong>, by you,
+        witnessed by me
       </p>
-    </div>
+    </section>
   );
 }

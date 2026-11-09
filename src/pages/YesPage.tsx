@@ -1,156 +1,124 @@
 import { useEffect, useRef } from "react";
+import { Navigate } from "react-router-dom";
 import { animate, stagger } from "animejs";
 import HeartScene from "../components/HeartScene";
-import LoveTimer from "./LoveTimer";
+import Celebration from "../components/Celebration";
 import LoveBook from "../components/LoveBook";
+import LoveTimer from "./LoveTimer";
+import { celebration } from "../data/personalization";
+import { getAcceptanceTimestamp } from "../lib/relationship";
+
 export default function YesPage() {
+  const acceptedAt = getAcceptanceTimestamp();
   const titleRef = useRef<HTMLHeadingElement>(null);
   const subtitleRef = useRef<HTMLParagraphElement>(null);
-  const emojiRef = useRef<HTMLSpanElement>(null);
-  const titleText = "My Girlfriend";
+  const messageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Animate the title letters
+    if (!titleRef.current) return;
 
-    if (titleRef.current) {
-      const titleAnim = animate(titleRef.current.querySelectorAll("span"), {
+    const titleAnimation = animate(titleRef.current.querySelectorAll(".letter"), {
+      opacity: [0, 1],
+      translateY: [36, 0],
+      delay: stagger(55),
+      duration: 850,
+      ease: "outExpo",
+    });
+
+    let subtitleAnimation: ReturnType<typeof animate> | undefined;
+    let messageAnimation: ReturnType<typeof animate> | undefined;
+
+    if (subtitleRef.current) {
+      subtitleAnimation = animate(subtitleRef.current, {
         opacity: [0, 1],
-        translateY: [30, 0],
-        delay: stagger(60),
+        translateY: [18, 0],
+        delay: 850,
+        duration: 700,
         ease: "outExpo",
-        duration: 800,
       });
-      let subtitleAnim: ReturnType<typeof animate> | undefined;
-      let emojiAnim: ReturnType<typeof animate> | undefined;
-      if (subtitleRef.current) {
-        subtitleAnim = animate(subtitleRef.current, {
-          opacity: [0, 1],
-          translateY: [20, 0],
-          delay: 1200,
-          duration: 800,
-          ease: "outExpo",
-        });
-      }
-      if (emojiRef.current)
-        emojiAnim = animate(emojiRef.current, {
-          opacity: [0, 1],
-          translateY: [30, 0],
-          delay: 1800,
-          duration: 800,
-          ease: "outExpo",
-        });
-      return () => {
-        titleAnim.pause();
-        if (subtitleAnim) subtitleAnim.pause();
-        if (emojiAnim) emojiAnim.pause();
-      };
     }
+
+    if (messageRef.current) {
+      messageAnimation = animate(messageRef.current, {
+        opacity: [0, 1],
+        translateY: [20, 0],
+        delay: 1150,
+        duration: 750,
+        ease: "outExpo",
+      });
+    }
+
+    return () => {
+      titleAnimation.pause();
+      subtitleAnimation?.pause();
+      messageAnimation?.pause();
+    };
   }, []);
 
+  if (!acceptedAt) {
+    return <Navigate to="/proposal" replace />;
+  }
+
   return (
-    <div style={{ minHeight: "100vh", position: "relative" }}>
+    <div className="yes-page">
       <HeartScene />
+      <div className="yes-overlay" aria-hidden="true" />
+      <Celebration />
 
-      {/* Overlay */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background:
-            "radial-gradient(ellipse at center, transparent 30%, rgba(8,2,5,0.55) 100%)",
-          pointerEvents: "none",
-          zIndex: 0,
-        }}
-      />
-
-      {/* Content */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          padding: "4rem 2rem 8rem",
-          gap: "2rem",
-        }}
-      >
-        {/* Hero */}
-        <div style={{ textAlign: "center", marginBottom: "1rem" }}>
-          <p
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "0.9rem",
-              letterSpacing: "0.25em",
-              color: "#c8973a",
-              textTransform: "uppercase",
-              marginBottom: "1rem",
-            }}
-          >
-            — she said yes —
+      <main id="main" className="yes-content">
+        <section className="yes-hero" aria-labelledby="yes-title">
+          <p className="eyebrow eyebrow--rose">· {celebration.eyebrow} ·</p>
+          <h1 className="yes-title" id="yes-title" ref={titleRef}>
+            {celebration.title.split("").map((character, index) => (
+              <span className="letter" key={`${character}-${index}`}>
+                {character === " " ? "\u00A0" : character}
+              </span>
+            ))}
+            <span aria-hidden="true">💝</span>
+          </h1>
+          <p className="yes-subtitle" ref={subtitleRef} style={{ opacity: 0 }}>
+            {celebration.subtitle}
           </p>
 
           <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexWrap: "wrap",
-              gap: "0.5rem",
-            }}
+            className="yes-message"
+            ref={messageRef}
+            style={{ opacity: 0 }}
           >
-            <h1
-              ref={titleRef}
-              style={{
-                fontFamily: "'Playfair Display', serif",
-                fontSize: "clamp(1.5rem, 6vw, 4.5rem)",
-                color: "#fff5f0",
-                lineHeight: 1.1,
-                marginBottom: "1rem",
-              }}
-            >
-              {titleText.split("").map((ch, i) => (
-                <span key={i} style={{ display: "inline-block", opacity: 0 }}>
-                  {ch === " " ? "\u00A0" : ch}
-                </span>
-              ))}
-            </h1>
-            {/* Emoji animated separately */}
-            <span
-              ref={emojiRef}
-              style={{
-                fontSize: "clamp(1.8em, 4vw, 4.5rem)",
-                opacity: 0,
-                display: "inline-block",
-                wordBreak: "keep-all",
-                whiteSpace: "nowrap",
-              }}
-            >
-              💝
-            </span>
+            {celebration.message.map((line, index) => (
+              <p key={line}>
+                {index === 0 ? (
+                  <>
+                    <strong>Thank you for saying yes.</strong>{" "}
+                    {line.replace("Thank you for saying yes. ", "")}
+                  </>
+                ) : (
+                  line
+                )}
+              </p>
+            ))}
           </div>
 
-          <p
-            ref={subtitleRef}
-            style={{
-              fontFamily: "'Cormorant Garamond', serif",
-              fontSize: "clamp(1rem, 2vw, 1.3rem)",
-              color: "#ff6b8a",
-              fontStyle: "italic",
-              opacity: 0,
-            }}
-          >
-            And so our story begins... ♥
-          </p>
-        </div>
+          <a className="yes-scroll" href="#contract">
+            {celebration.contractHint}
+          </a>
+        </section>
 
-        {/* Love Timer */}
-        <LoveTimer />
+        <section className="yes-section" id="contract">
+          <LoveTimer acceptedAt={acceptedAt} />
+        </section>
 
-        {/* Book Section */}
-
-        <LoveBook />
-      </div>
+        <section className="yes-section yes-section--book" id="book">
+          <header className="yes-section__head">
+            <p className="eyebrow eyebrow--rose">· {celebration.bookHint} ·</p>
+            <h2 className="yes-section__title">Your keepsake</h2>
+            <p className="yes-section__note">
+              Six pages from a story that has only just begun.
+            </p>
+          </header>
+          <LoveBook />
+        </section>
+      </main>
     </div>
   );
 }
